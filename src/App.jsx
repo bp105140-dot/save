@@ -12,7 +12,7 @@ const CATEGORIES = [
   {
     id: "pain", emoji: "🤒", label: "Dói", color: "#E63946", bg: "#FFF0F1",
     items: [
-      { emoji: "🤕", label: "Cabeça" },   { emoji: "🫀", label: "Barriga" },
+      { emoji: "🤕", label: "Cabeça" },   { emoji: "🫃", label: "Barriga" },
       { emoji: "🦷", label: "Dente" },    { emoji: "👂", label: "Ouvido" },
       { emoji: "🤧", label: "Nariz" },    { emoji: "😣", label: "Muito" },
     ],
