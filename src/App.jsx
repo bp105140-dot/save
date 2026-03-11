@@ -57,13 +57,24 @@ const ALERT_SPEECH   = ["Preciso de ajuda!", "Venha aqui!", "Estou aqui!"];
 // ─── TTS ───────────────────────────────────────────────────────────────────────
 const audioCache = new Map();
 
-// Chama /api/speak (Vercel serverless) — chave segura no servidor
+// iOS Safari exige que o Audio seja criado e .play() chamado dentro de um gesto
+// do usuário. Como o fetch é assíncrono, criamos um Audio "desbloqueado" no toque
+// e depois trocamos o src quando o blob chega.
+let unlockedAudio = null;
+function unlockAudio() {
+  if (unlockedAudio) return;
+  unlockedAudio = new Audio();
+  unlockedAudio.src = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
+  unlockedAudio.play().catch(() => {});
+}
+
 async function speakElevenLabs(text) {
   try {
+    // Verifica cache primeiro
     if (audioCache.has(text)) {
-      const cached = audioCache.get(text).cloneNode();
-      cached.volume = 1;
-      await cached.play();
+      const audio = new Audio(audioCache.get(text));
+      audio.volume = 1;
+      await audio.play();
       return true;
     }
     const res = await fetch("/api/speak", {
@@ -72,9 +83,10 @@ async function speakElevenLabs(text) {
       body: JSON.stringify({ text }),
     });
     if (!res.ok) return false;
-    const blob  = await res.blob();
-    const audio = new Audio(URL.createObjectURL(blob));
-    audioCache.set(text, audio);
+    const blob = await res.blob();
+    const url  = URL.createObjectURL(blob);
+    audioCache.set(text, url); // guarda URL, não o element
+    const audio = new Audio(url);
     audio.volume = 1;
     await audio.play();
     return true;
@@ -183,15 +195,17 @@ export default function ComunicarApp() {
   const cat = activeCategory ? CATEGORIES.find(c => c.id === activeCategory) : null;
 
   return (
-    <div style={{
-      height: "100dvh",
-      maxHeight: "100dvh",
-      overflow: "hidden",
-      background: "linear-gradient(160deg, #FFFBF5 0%, #FFF0FA 100%)",
-      fontFamily: "'Nunito', cursive, sans-serif",
-      display: "flex", flexDirection: "column", alignItems: "center",
-      userSelect: "none",
-    }}>
+    <div
+      onPointerDown={unlockAudio}
+      style={{
+        height: "100dvh",
+        maxHeight: "100dvh",
+        overflow: "hidden",
+        background: "linear-gradient(160deg, #FFFBF5 0%, #FFF0FA 100%)",
+        fontFamily: "'Nunito', cursive, sans-serif",
+        display: "flex", flexDirection: "column", alignItems: "center",
+        userSelect: "none",
+      }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@700;900&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
