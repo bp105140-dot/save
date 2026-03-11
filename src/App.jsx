@@ -56,10 +56,9 @@ const ALERT_SPEECH   = ["Preciso de ajuda!", "Venha aqui!", "Estou aqui!"];
 
 // ─── TTS ───────────────────────────────────────────────────────────────────────
 const audioCache = new Map();
-const EL_VOICE_ID = "EXAVITQu4vr4xnSDxMaL"; // Bella — voz calorosa e multilingual
-const EL_MODEL    = "eleven_multilingual_v2";
 
-async function speakElevenLabs(text, apiKey) {
+// Chama /api/speak (Vercel serverless) — chave segura no servidor
+async function speakElevenLabs(text) {
   try {
     if (audioCache.has(text)) {
       const cached = audioCache.get(text).cloneNode();
@@ -67,18 +66,11 @@ async function speakElevenLabs(text, apiKey) {
       await cached.play();
       return true;
     }
-    const res = await fetch(
-      `https://api.elevenlabs.io/v1/text-to-speech/${EL_VOICE_ID}`,
-      {
-        method: "POST",
-        headers: { "xi-api-key": apiKey, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text,
-          model_id: EL_MODEL,
-          voice_settings: { stability: 0.55, similarity_boost: 0.85, style: 0.25, use_speaker_boost: true },
-        }),
-      }
-    );
+    const res = await fetch("/api/speak", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
     if (!res.ok) return false;
     const blob  = await res.blob();
     const audio = new Audio(URL.createObjectURL(blob));
@@ -132,7 +124,6 @@ export default function ComunicarApp() {
   const [activeCategory, setActiveCategory] = useState(null);
   const [selectedItem, setSelectedItem]     = useState(null);
   const [alertMsgIdx, setAlertMsgIdx]       = useState(0);
-  const [apiKey]                            = useState(() => import.meta.env.VITE_ELEVENLABS_KEY || "");
   const alertIntervalRef = useRef(null);
   const soundIntervalRef = useRef(null);
 
@@ -142,9 +133,9 @@ export default function ComunicarApp() {
   }, []);
 
   const speak = useCallback(async (text) => {
-    if (apiKey) { const ok = await speakElevenLabs(text, apiKey); if (ok) return; }
-    speakFallback(text);
-  }, [apiKey]);
+    const ok = await speakElevenLabs(text);
+    if (!ok) speakFallback(text);
+  }, []);
 
   const stopAlert = useCallback(() => {
     clearInterval(alertIntervalRef.current);
@@ -193,11 +184,13 @@ export default function ComunicarApp() {
 
   return (
     <div style={{
-      minHeight: "100vh",
+      height: "100dvh",
+      maxHeight: "100dvh",
+      overflow: "hidden",
       background: "linear-gradient(160deg, #FFFBF5 0%, #FFF0FA 100%)",
       fontFamily: "'Nunito', cursive, sans-serif",
       display: "flex", flexDirection: "column", alignItems: "center",
-      userSelect: "none", overflowX: "hidden",
+      userSelect: "none",
     }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@700;900&display=swap');
@@ -231,16 +224,16 @@ export default function ComunicarApp() {
           position:"fixed",inset:0,zIndex:200,
           display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:28,
         }}>
-          <div className="big-bounce" style={{fontSize:100,lineHeight:1}}>🆘</div>
+          <div className="big-bounce" style={{fontSize:"clamp(60px,15vw,100px)",lineHeight:1}}>🆘</div>
           <div className="wave-pulse" style={{background:"rgba(255,255,255,0.2)",borderRadius:28,padding:"20px 36px",textAlign:"center"}}>
-            <div style={{fontSize:34,fontWeight:900,color:"#fff",lineHeight:1.3}}>{ALERT_MESSAGES[alertMsgIdx]}</div>
+            <div style={{fontSize:"clamp(22px,6vw,34px)",fontWeight:900,color:"#fff",lineHeight:1.3}}>{ALERT_MESSAGES[alertMsgIdx]}</div>
           </div>
-          <div style={{display:"flex",gap:12,fontSize:38}}>
+          <div style={{display:"flex",gap:12,fontSize:"clamp(26px,7vw,38px)"}}>
             <span>📣</span><span>📣</span><span>📣</span>
           </div>
           <button onClick={stopAlert} className="btn ring-pulse" style={{
             marginTop:8,background:"#fff",color:"#C62828",borderRadius:50,
-            padding:"20px 52px",fontSize:22,fontWeight:900,fontFamily:"inherit",
+            padding:"clamp(14px,3vh,20px) clamp(30px,8vw,52px)",fontSize:"clamp(16px,4vw,22px)",fontWeight:900,fontFamily:"inherit",
             boxShadow:"0 6px 28px rgba(0,0,0,0.3)",
           }}>✅ Já estou aqui!</button>
         </div>
@@ -248,22 +241,22 @@ export default function ComunicarApp() {
 
       {/* HEADER */}
       {screen !== "alert" && (
-        <div style={{width:"100%",maxWidth:480,padding:"18px 18px 0",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <div style={{width:"100%",maxWidth:480,padding:"10px 14px 0",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
           {screen === "category"
             ? <button onClick={() => { setScreen("home"); setActiveCategory(null); }} className="btn"
-                style={{background:"#fff",borderRadius:50,width:52,height:52,fontSize:22,
+                style={{background:"#fff",borderRadius:50,width:"clamp(42px,9vw,52px)",height:"clamp(42px,9vw,52px)",fontSize:"clamp(18px,4.5vw,22px)",
                   boxShadow:"0 2px 10px rgba(0,0,0,0.1)",display:"flex",alignItems:"center",justifyContent:"center"}}>⬅️</button>
             : <div style={{width:52}} />
           }
           <div style={{textAlign:"center"}}>
-            <div style={{fontSize:24}}>{screen==="category"&&cat ? cat.emoji : "💬"}</div>
-            <div style={{fontSize:13,fontWeight:900,color:"#999",letterSpacing:1}}>
+            <div style={{fontSize:"clamp(20px,5vw,24px)"}}>{screen==="category"&&cat ? cat.emoji : "💬"}</div>
+            <div style={{fontSize:"clamp(10px,2.5vw,13px)",fontWeight:900,color:"#999",letterSpacing:1}}>
               {screen==="category"&&cat ? cat.label.toUpperCase() : "COMUNICAR"}
             </div>
           </div>
           <button onClick={triggerAlert} className="btn ring-pulse" style={{
             background:"linear-gradient(135deg,#FF1744,#FF5252)",borderRadius:50,
-            width:56,height:56,fontSize:26,display:"flex",alignItems:"center",justifyContent:"center",
+            width:"clamp(44px,10vw,56px)",height:"clamp(44px,10vw,56px)",fontSize:"clamp(20px,5vw,26px)",display:"flex",alignItems:"center",justifyContent:"center",
             boxShadow:"0 4px 16px rgba(255,23,68,0.5)",
           }}>🆘</button>
         </div>
@@ -285,88 +278,86 @@ export default function ComunicarApp() {
 
       {/* HOME */}
       {screen === "home" && (
-        <div style={{width:"100%",maxWidth:480,padding:"16px 14px 100px",display:"flex",flexDirection:"column",gap:12}}>
+        <div style={{
+          width:"100%", maxWidth:480,
+          flex:1, minHeight:0,
+          padding:"10px 12px 12px",
+          display:"flex", flexDirection:"column", gap:"1.2vh",
+          overflow:"hidden",
+        }}>
 
           {/* SIM / NÃO */}
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"1vh",flex:"0.9",minHeight:0}}>
             <button
               onClick={() => { if(navigator.vibrate)navigator.vibrate([80,30,80]); speak("Sim!"); }}
               className="btn fade-up"
               style={{
                 background:"linear-gradient(135deg,#22c55e,#16a34a)",
-                borderRadius:28,padding:"28px 10px",
-                display:"flex",flexDirection:"column",alignItems:"center",gap:8,
+                borderRadius:28, padding:"4px",
+                display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:"0.6vh",
                 boxShadow:"0 6px 24px rgba(34,197,94,0.45)",
                 animationDelay:"0s",animationFillMode:"both",
+                height:"100%",
               }}>
-              <span style={{fontSize:58,lineHeight:1}}>👍</span>
-              <span style={{fontSize:28,fontWeight:900,color:"#fff",letterSpacing:1}}>SIM</span>
+              <span style={{fontSize:"clamp(28px,6vw,46px)",lineHeight:1}}>👍</span>
+              <span style={{fontSize:"clamp(16px,4vw,22px)",fontWeight:900,color:"#fff",letterSpacing:1}}>SIM</span>
             </button>
             <button
               onClick={() => { if(navigator.vibrate)navigator.vibrate([80,30,80]); speak("Não!"); }}
               className="btn fade-up"
               style={{
                 background:"linear-gradient(135deg,#ef4444,#dc2626)",
-                borderRadius:28,padding:"28px 10px",
-                display:"flex",flexDirection:"column",alignItems:"center",gap:8,
+                borderRadius:28, padding:"4px",
+                display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:"0.6vh",
                 boxShadow:"0 6px 24px rgba(239,68,68,0.45)",
                 animationDelay:"0.07s",animationFillMode:"both",
+                height:"100%",
               }}>
-              <span style={{fontSize:58,lineHeight:1}}>👎</span>
-              <span style={{fontSize:28,fontWeight:900,color:"#fff",letterSpacing:1}}>NÃO</span>
+              <span style={{fontSize:"clamp(28px,6vw,46px)",lineHeight:1}}>👎</span>
+              <span style={{fontSize:"clamp(16px,4vw,22px)",fontWeight:900,color:"#fff",letterSpacing:1}}>NÃO</span>
             </button>
           </div>
 
           {/* Divisor */}
-          <div style={{display:"flex",alignItems:"center",gap:10,padding:"2px 4px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
             <div style={{flex:1,height:2,background:"#eee",borderRadius:2}} />
-            <span style={{fontSize:12,fontWeight:900,color:"#ccc",letterSpacing:1}}>O QUE VOCÊ PRECISA?</span>
+            <span style={{fontSize:11,fontWeight:900,color:"#ccc",letterSpacing:1}}>O QUE VOCÊ PRECISA?</span>
             <div style={{flex:1,height:2,background:"#eee",borderRadius:2}} />
           </div>
 
           {/* Categorias */}
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"1vh",flex:"4",minHeight:0}}>
             {CATEGORIES.map((c, i) => (
               <button key={c.id} onClick={() => handleCategoryClick(c.id, c.label)}
                 className="btn fade-up" style={{
-                  background:c.bg,border:`3px solid ${c.color}33`,borderRadius:24,
-                  padding:"22px 10px",display:"flex",flexDirection:"column",alignItems:"center",gap:8,
+                  background:c.bg,border:`3px solid ${c.color}33`,borderRadius:20,
+                  padding:"4px",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:"0.5vh",
                   boxShadow:`0 4px 18px ${c.color}22`,
                   animationDelay:`${(i+2)*0.07}s`,animationFillMode:"both",
+                  height:"100%",
                 }}>
-                <span style={{fontSize:50,lineHeight:1}}>{c.emoji}</span>
-                <span style={{fontSize:17,fontWeight:900,color:c.color}}>{c.label}</span>
+                <span style={{fontSize:"clamp(28px,6vw,44px)",lineHeight:1}}>{c.emoji}</span>
+                <span style={{fontSize:"clamp(13px,3.5vw,17px)",fontWeight:900,color:c.color}}>{c.label}</span>
               </button>
             ))}
           </div>
 
-          {/* Chamar ajuda */}
-          <button onClick={triggerAlert} className="btn fade-up" style={{
-            background:"linear-gradient(135deg,#FF1744 0%,#FF5252 100%)",
-            borderRadius:24,padding:"22px",
-            display:"flex",alignItems:"center",justifyContent:"center",gap:14,
-            boxShadow:"0 6px 24px rgba(255,23,68,0.45)",
-            animationDelay:"0.7s",animationFillMode:"both",
-          }}>
-            <span style={{fontSize:40}}>🆘</span>
-            <span style={{fontSize:26,fontWeight:900,color:"#fff"}}>CHAMAR AJUDA!</span>
-          </button>
         </div>
       )}
 
       {/* CATEGORIA */}
       {screen === "category" && cat && (
-        <div style={{width:"100%",maxWidth:480,padding:"16px 14px 100px",display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}}>
+        <div style={{width:"100%",maxWidth:480,padding:"clamp(8px,2vh,16px) clamp(8px,3vw,14px)",display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"clamp(6px,1.5vw,12px)"}}>
           {cat.items.map((item, i) => (
             <button key={item.label} onClick={() => handleItemClick(item)}
               className="btn fade-up" style={{
                 background:"#fff",border:`3px solid ${cat.color}30`,borderRadius:20,
-                padding:"18px 8px",display:"flex",flexDirection:"column",alignItems:"center",gap:8,
+                padding:"clamp(8px,2vh,18px) clamp(4px,1.5vw,8px)",display:"flex",flexDirection:"column",alignItems:"center",gap:8,
                 boxShadow:`0 3px 14px ${cat.color}18`,
                 animationDelay:`${i*0.07}s`,animationFillMode:"both",
               }}>
-              <span style={{fontSize:46,lineHeight:1}}>{item.emoji}</span>
-              <span style={{fontSize:14,fontWeight:900,color:cat.color,textAlign:"center",lineHeight:1.2}}>
+              <span style={{fontSize:"clamp(28px,8vw,46px)",lineHeight:1}}>{item.emoji}</span>
+              <span style={{fontSize:"clamp(11px,3vw,14px)",fontWeight:900,color:cat.color,textAlign:"center",lineHeight:1.2}}>
                 {item.label}
               </span>
             </button>
@@ -374,17 +365,7 @@ export default function ComunicarApp() {
         </div>
       )}
 
-      {/* RODAPÉ */}
-      {screen !== "alert" && (
-        <div style={{
-          position:"fixed",bottom:0,width:"100%",maxWidth:480,
-          textAlign:"center",padding:"12px 16px",
-          background:"rgba(255,255,255,0.9)",backdropFilter:"blur(10px)",
-          fontSize:12,color:"#bbb",fontWeight:700,letterSpacing:0.5,
-        }}>
-          Toque em qualquer cartão para comunicar 💛
-        </div>
-      )}
+
     </div>
   );
 }
