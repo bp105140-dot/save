@@ -55,42 +55,64 @@ const ALERT_MESSAGES = ["Preciso de ajuda! 🆘", "Venha aqui! 📣", "Estou aqu
 const ALERT_SPEECH   = ["Preciso de ajuda!", "Venha aqui!", "Estou aqui!"];
 
 // ─── TTS ───────────────────────────────────────────────────────────────────────
-const audioCache = new Map();
+// Estratégia: Web Audio API com AudioContext desbloqueado no primeiro toque.
+// AudioContext fica vivo após o gesto — pode tocar áudio assíncrono depois.
+// Fallback: Web Speech API.
 
-// iOS Safari exige que o Audio seja criado e .play() chamado dentro de um gesto
-// do usuário. Como o fetch é assíncrono, criamos um Audio "desbloqueado" no toque
-// e depois trocamos o src quando o blob chega.
-let unlockedAudio = null;
+const audioCache = new Map(); // text -> ArrayBuffer
+let audioCtx = null;
+
+function getAudioContext() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  return audioCtx;
+}
+
+// Chama no primeiro toque para desbloquear o AudioContext no iOS
 function unlockAudio() {
-  if (unlockedAudio) return;
-  unlockedAudio = new Audio();
-  unlockedAudio.src = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
-  unlockedAudio.play().catch(() => {});
+  const ctx = getAudioContext();
+  if (ctx.state === "suspended") {
+    ctx.resume();
+  }
+  // Toca 1ms de silêncio para confirmar o desbloqueio
+  const buf = ctx.createBuffer(1, 1, 22050);
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  src.connect(ctx.destination);
+  src.start(0);
 }
 
 async function speakElevenLabs(text) {
   try {
-    // Verifica cache primeiro
+    const ctx = getAudioContext();
+    if (ctx.state === "suspended") await ctx.resume();
+
+    let arrayBuffer;
     if (audioCache.has(text)) {
-      const audio = new Audio(audioCache.get(text));
-      audio.volume = 1;
-      await audio.play();
-      return true;
+      arrayBuffer = audioCache.get(text);
+    } else {
+      const res = await fetch("/api/speak", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      if (!res.ok) return false;
+      arrayBuffer = await res.arrayBuffer();
+      audioCache.set(text, arrayBuffer);
     }
-    const res = await fetch("/api/speak", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text }),
-    });
-    if (!res.ok) return false;
-    const blob = await res.blob();
-    const url  = URL.createObjectURL(blob);
-    audioCache.set(text, url); // guarda URL, não o element
-    const audio = new Audio(url);
-    audio.volume = 1;
-    await audio.play();
+
+    // decodeAudioData + play via AudioContext — funciona no iOS mesmo após await
+    const decoded = await ctx.decodeAudioData(arrayBuffer.slice(0));
+    const src = ctx.createBufferSource();
+    src.buffer = decoded;
+    src.connect(ctx.destination);
+    src.start(0);
     return true;
-  } catch { return false; }
+  } catch (e) {
+    console.warn("ElevenLabs error:", e);
+    return false;
+  }
 }
 
 function speakFallback(text) {
