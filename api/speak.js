@@ -6,17 +6,15 @@ export default async function handler(req, res) {
 
   const apiKey = process.env.ELEVENLABS_KEY;
 
-  // Vozes nativas de pt-BR no ElevenLabs
+  // Vozes nativas pt-BR
   const VOICES = {
-    female: "pFZP5JQG7iQjIQuC4Bku", // Lia — voz feminina brasileira nativa
-    male:   "TxGEqnHWrfWFTfGW9XjX", // Josh — voz masculina multilingual com pt-BR
+    female: "pFZP5JQG7iQjIQuC4Bku", // Lia — brasileira nativa
+    male:   "TxGEqnHWrfWFTfGW9XjX", // Josh — multilingual pt-BR
   };
-
-  const voiceId = VOICES[voice] || VOICES.female;
 
   try {
     const elRes = await fetch(
-      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
+      `https://api.elevenlabs.io/v1/text-to-speech/${VOICES[voice] || VOICES.female}`,
       {
         method: "POST",
         headers: { "xi-api-key": apiKey, "Content-Type": "application/json" },
@@ -24,25 +22,15 @@ export default async function handler(req, res) {
           text,
           model_id: "eleven_multilingual_v2",
           language_code: "pt",
-          voice_settings: {
-            stability: 0.55,
-            similarity_boost: 0.85,
-            style: 0.20,
-            use_speaker_boost: true,
-          },
+          voice_settings: { stability: 0.55, similarity_boost: 0.85, style: 0.20, use_speaker_boost: true },
         }),
       }
     );
-
-    if (!elRes.ok) {
-      const err = await elRes.text();
-      return res.status(elRes.status).json({ error: err });
-    }
-
-    const audioBuffer = await elRes.arrayBuffer();
+    if (!elRes.ok) return res.status(elRes.status).json({ error: await elRes.text() });
+    const buf = await elRes.arrayBuffer();
     res.setHeader("Content-Type", "audio/mpeg");
     res.setHeader("Cache-Control", "public, max-age=86400");
-    res.send(Buffer.from(audioBuffer));
+    res.send(Buffer.from(buf));
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
