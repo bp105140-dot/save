@@ -52,6 +52,22 @@ const CATEGORIES = [
 ];
 
 const ALERT_MESSAGES = ["Preciso de ajuda! 🆘", "Venha aqui! 📣", "Estou aqui! 🙋"];
+const ALERT_SPEECH   = ["Preciso de ajuda!", "Venha aqui!", "Estou aqui!"];
+
+function speak(text, rate = 0.9, pitch = 1.1) {
+  if (!window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.lang = "pt-BR";
+  utter.rate = rate;
+  utter.pitch = pitch;
+  utter.volume = 1;
+  // tenta pegar voz em português
+  const voices = window.speechSynthesis.getVoices();
+  const ptVoice = voices.find(v => v.lang.startsWith("pt"));
+  if (ptVoice) utter.voice = ptVoice;
+  window.speechSynthesis.speak(utter);
+}
 
 function playAlertSound() {
   try {
@@ -87,6 +103,8 @@ export default function ComunicarApp() {
   const stopAlert = useCallback(() => {
     clearInterval(alertIntervalRef.current);
     clearInterval(soundIntervalRef.current);
+    window.speechSynthesis && window.speechSynthesis.cancel();
+    speak("Olá! Estou aqui!", 0.9, 1.2);
     setScreen("home");
   }, []);
 
@@ -95,9 +113,13 @@ export default function ComunicarApp() {
     setAlertMsgIdx(0);
     if (navigator.vibrate) navigator.vibrate([300,100,300,100,600,200,300,100,500]);
     playAlertSound();
+    speak("Preciso de ajuda!", 0.85, 1.0);
+    let msgI = 0;
     alertIntervalRef.current = setInterval(() => {
-      setAlertMsgIdx(i => (i + 1) % ALERT_MESSAGES.length);
-    }, 1400);
+      msgI = (msgI + 1) % ALERT_SPEECH.length;
+      setAlertMsgIdx(msgI);
+      speak(ALERT_SPEECH[msgI], 0.85, 1.0);
+    }, 2800);
     soundIntervalRef.current = setInterval(() => {
       if (navigator.vibrate) navigator.vibrate([200,80,200,80,400]);
       playAlertSound();
@@ -111,8 +133,15 @@ export default function ComunicarApp() {
 
   const handleItemClick = useCallback((item) => {
     if (navigator.vibrate) navigator.vibrate([60, 30, 60]);
+    speak(item.label, 0.9, 1.2);
     setSelectedItem(item);
     setTimeout(() => setSelectedItem(null), 2200);
+  }, []);
+
+  const handleCategoryClick = useCallback((catId, catLabel) => {
+    speak(catLabel, 0.9, 1.1);
+    setActiveCategory(catId);
+    setScreen("category");
   }, []);
 
   const cat = activeCategory ? CATEGORIES.find(c => c.id === activeCategory) : null;
@@ -250,7 +279,7 @@ export default function ComunicarApp() {
           display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12,
         }}>
           {CATEGORIES.map((c, i) => (
-            <button key={c.id} onClick={() => { setActiveCategory(c.id); setScreen("category"); }}
+            <button key={c.id} onClick={() => handleCategoryClick(c.id, c.label)}
               className="btn fade-up" style={{
                 background: c.bg, border: `3px solid ${c.color}33`, borderRadius: 24,
                 padding: "22px 10px", display: "flex", flexDirection: "column",
